@@ -7,6 +7,7 @@ from model import HealthProfile, Product
 
 app = FastAPI(title="USANA Nutritional Coach API")
 
+# Opens products.json and checks that every product matches our rules
 def load_products():
     """
     Loads and validates the product catalog against the Product schema.
@@ -32,12 +33,14 @@ def load_products():
 
     return validated_catalog
 
-
+# Just says "hello, the API is working" when you visit the homepage
 @app.get("/", tags=["Health Check"])
 def home():
     """Basic liveness check — confirms the API is running."""
     return {"message": "Welcome to the USANA Nutritional Coach API!"}
 
+
+# Takes a health profile someone submits and checks it's filled out correctly
 @app.post("/profile", tags=["Health Profile"])
 async def create_profile(profile: HealthProfile):
     """
@@ -50,7 +53,47 @@ async def create_profile(profile: HealthProfile):
         "data": profile
     }
 
+
+# Sends back the full list of products
 @app.get("/products", tags=["Product Catalog"])
 def get_products():
     """Returns the full validated product catalog."""
     return {"catalog": load_products()}
+
+
+# Recommends products based on a submitted health profile
+@app.post("/recommend", tags=["Recommendations"])
+async def recommend_products(profile: HealthProfile):
+    catalog = load_products()
+    member_goals = set(goal.value for goal in profile.health_goals)
+
+    # Go through each product and see if it shares any goals with the person
+    results = []
+    for product in catalog:
+        product_goals = set(goal.value for goal in product.target_goals)
+        overlap = member_goals & product_goals
+
+        if overlap:
+            results.append({
+                "id": product.id,
+                "name": product.name,
+                "category": product.category,
+                "dosage": product.dosage,
+                "matched_goals": sorted(overlap),
+                "match_count": len(overlap)
+            })
+
+# Sort the results by how many goals matched, descending
+    results.sort(key=lambda r: r["match_count"], reverse=True)
+
+    if not results:
+        return {
+            "status": "no_matches",
+            "message": "No products matched the selected health goals.",
+            "recommendations": []
+        }
+
+    return {
+        "status": "success",
+        "recommendations": results
+    }
