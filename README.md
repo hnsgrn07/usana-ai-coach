@@ -21,7 +21,7 @@ Visit `http://127.0.0.1:8000/docs` for interactive API testing.
 | Phase | Description | Status |
 |---|---|---|
 | 1 | Environment & Foundation | ✅ |
-| 2 | Health Profile Model | ⏳ |
+| 2 | Health Profile Model | ✅ |
 | 3 | Product Catalog Structure | ⏳ |
 | 4 | Core Recommendation Engine | ⏳ |
 | 5 | Dietary Restriction Filtering | ⏳ |
