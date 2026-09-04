@@ -4,7 +4,18 @@ from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from enum import Enum
 
-
+class Product(BaseModel):
+    """
+    Schema for a single catalog entry. Validating against this
+    ensures every product's target_goals actually match the
+    HealthGoal vocabulary — catches typos before they become
+    silent matching failures in the recommendation engine.
+    """
+    id: str
+    name: str
+    category: str
+    target_goals: List[HealthGoal]
+    dosage: str
 class ActivityLevel(str, Enum):
     sedentary = "sedentary"
     light = "light"
