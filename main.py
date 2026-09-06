@@ -4,9 +4,12 @@ import json
 
 from requests import Session
 
-from model import HealthProfile, Product
+from model import HealthProfile, Product, UserRegister, UserOut
 from database import engine, SessionLocal, Base
-from db_models import ProfileDB
+from db_models import ProfileDB, UserDB
+
+import uuid
+from auth import hash_password
 
 
 app = FastAPI(title="USANA Nutritional Coach API")
@@ -42,6 +45,8 @@ def load_products():
         )
 
     return validated_catalog
+
+
 
 # Just says "hello, the API is working" when you visit the homepage
 @app.get("/", tags=["Health Check"])
@@ -160,7 +165,7 @@ def build_recommendations(profile: HealthProfile):
                 "matched_goals": sorted(overlap),
                 "match_count": len(overlap)
             })
-            
+
 # Sort the results by how many goals matched, descending
     results.sort(key=lambda r: r["match_count"], reverse=True)
 
@@ -175,3 +180,22 @@ def build_recommendations(profile: HealthProfile):
         "status": "success",
         "recommendations": results
     }
+
+
+# Creates a new user account with a securely hashed password
+@app.post("/register", response_model=UserOut, tags=["Auth"])
+def register_user(user: UserRegister, db: Session = Depends(get_db)):
+    existing = db.query(UserDB).filter(UserDB.email == user.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    new_user = UserDB(
+        user_id=str(uuid.uuid4()),
+        email=user.email,
+        hashed_password=hash_password(user.password)
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return UserOut(user_id=new_user.user_id, email=new_user.email)

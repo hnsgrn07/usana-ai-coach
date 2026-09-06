@@ -105,3 +105,14 @@ class Product(BaseModel):
         default_factory=list,
         description="Dietary restrictions this product conflicts with (e.g. fish oil conflicts with vegan)"
     )
+
+# What someone submits to create an account
+class UserRegister(BaseModel):
+    email: str = Field(..., min_length=5, max_length=100)
+    password: str = Field(..., min_length=8, max_length=100)
+
+
+# What we send back after registration — never includes the password
+class UserOut(BaseModel):
+    user_id: str
+    email: str
