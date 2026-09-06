@@ -9,12 +9,7 @@ app = FastAPI(title="USANA Nutritional Coach API")
 
 # Opens products.json and checks that every product matches our rules
 def load_products():
-    """
-    Loads and validates the product catalog against the Product schema.
-    Fails loudly (500) if the file is missing, malformed, or contains
-    a product with an invalid target_goal — better to catch this at
-    request time than have it silently break matching later.
-    """
+
     try:
         with open("products.json", "r") as file:
             raw_catalog = json.load(file)
@@ -43,10 +38,6 @@ def home():
 # Takes a health profile someone submits and checks it's filled out correctly
 @app.post("/profile", tags=["Health Profile"])
 async def create_profile(profile: HealthProfile):
-    """
-    Validates a submitted health profile against the HealthProfile schema.
-    No persistence yet (that's Phase 7) — this confirms the schema works.
-    """
     return {
         "status": "success",
         "message": f"Profile validated for {profile.full_name}",
@@ -57,7 +48,6 @@ async def create_profile(profile: HealthProfile):
 # Sends back the full list of products
 @app.get("/products", tags=["Product Catalog"])
 def get_products():
-    """Returns the full validated product catalog."""
     return {"catalog": load_products()}
 
 

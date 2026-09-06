@@ -14,5 +14,117 @@
     "target_goals": ["joint_support", "cognitive_support"],
     "dosage": "2 capsules daily with meals",
     "contains": ["vegan", "vegetarian"]
+  },
+  {
+    "id": "proflavanolc100",
+    "name": "Proflavanol C100",
+    "category": "Optimizers",
+    "target_goals": ["general_wellness", "immune_support", "heart_health"],
+    "dosage": "1 tablet daily, preferably with a meal",
+    "contains": []
+  },
+  {
+    "id": "coquinone30",
+    "name": "CoQuinone 30",
+    "category": "Optimizers",
+    "target_goals": ["heart_health", "energy_support"],
+    "dosage": "See product label for current dosing",
+    "contains": []
+  },
+  {
+    "id": "magnecald",
+    "name": "MagneCal D",
+    "category": "Optimizers",
+    "target_goals": ["general_wellness", "heart_health", "bone_health"],
+    "dosage": "See product label for current dosing",
+    "contains": []
+  },
+  {
+    "id": "hepasildtx",
+    "name": "Hepasil DTX",
+    "category": "Optimizers",
+    "target_goals": ["detox_support"],
+    "dosage": "See product label for current dosing",
+    "contains": []
+  },
+  {
+    "id": "polyc",
+    "name": "Poly C",
+    "category": "Optimizers",
+    "target_goals": ["general_wellness", "immune_support", "bone_health"],
+    "dosage": "See product label for current dosing",
+    "contains": []
+  },
+  {
+    "id": "visionex",
+    "name": "Visionex",
+    "category": "Optimizers",
+    "target_goals": ["eye_health", "skin_health"],
+    "dosage": "See product label for current dosing",
+    "contains": []
+  },
+  {
+    "id": "procosa",
+    "name": "Procosa",
+    "category": "Optimizers",
+    "target_goals": ["bone_health", "joint_support", "immune_support"],
+    "dosage": "See product label for current dosing",
+    "contains": ["vegan"]
+  },
+  {
+    "id": "purerestsf",
+    "name": "PureRest SF",
+    "category": "Optimizers",
+    "target_goals": ["sleep_quality"],
+    "dosage": "See product label for current dosing",
+    "contains": []
+  },
+  {
+    "id": "proglucamune",
+    "name": "Proglucamune",
+    "category": "Optimizers",
+    "target_goals": ["immune_support"],
+    "dosage": "See product label for current dosing",
+    "contains": []
+  },
+  {
+    "id": "usanaprobiotic",
+    "name": "USANA Probiotic",
+    "category": "Optimizers",
+    "target_goals": ["digestive_health", "immune_support"],
+    "dosage": "See product label for current dosing",
+    "contains": []
+  },
+  {
+    "id": "palmettoplus",
+    "name": "Palmetto Plus",
+    "category": "Optimizers",
+    "target_goals": ["mens_health", "heart_health"],
+    "dosage": "See product label for current dosing",
+    "contains": []
+  },
+  {
+    "id": "digestiveenzyme",
+    "name": "Digestive Enzyme",
+    "category": "Optimizers",
+    "target_goals": ["digestive_health"],
+    "dosage": "See product label for current dosing",
+    "contains": []
+  },
+  {
+    "id": "procalmplus",
+    "name": "ProCalm+",
+    "category": "Optimizers",
+    "target_goals": ["stress_management"],
+    "dosage": "See product label for current dosing",
+    "contains": []
+  },
+  {
+    "id": "advancedcollagen",
+    "name": "Advanced Collagen",
+    "category": "Foods",
+    "target_goals": ["skin_health", "joint_support"],
+    "dosage": "Taken daily",
+    "contains": ["vegan", "vegetarian"]
   }
 ]

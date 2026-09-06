@@ -4,18 +4,6 @@ from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from enum import Enum
 
-class Product(BaseModel):
-    """
-    Schema for a single catalog entry. Validating against this
-    ensures every product's target_goals actually match the
-    HealthGoal vocabulary — catches typos before they become
-    silent matching failures in the recommendation engine.
-    """
-    id: str
-    name: str
-    category: str
-    target_goals: List[HealthGoal]
-    dosage: str
 class ActivityLevel(str, Enum):
     sedentary = "sedentary"
     light = "light"
@@ -47,6 +35,10 @@ class HealthGoal(str, Enum):
     skin_health = "skin_health"
     cognitive_support = "cognitive_support"
     general_wellness = "general_wellness"
+    eye_health = "eye_health"         
+    bone_health = "bone_health"        
+    detox_support = "detox_support"    
+    mens_health = "mens_health"
 
 
 class DietaryRestriction(str, Enum):
@@ -59,10 +51,6 @@ class DietaryRestriction(str, Enum):
 
 
 class HealthProfile(BaseModel):
-    """
-    Core input model for a member's health & wellness profile.
-    Single source of truth for the recommendation engine (Phase 4+).
-    """
     user_id: str = Field(..., description="Unique identifier for the member (placeholder until Phase 8 auth)")
 
     full_name: str = Field(..., min_length=1, max_length=100)
@@ -106,3 +94,14 @@ class HealthProfile(BaseModel):
                 "notes": "Prefers capsules over powders"
             }
         }
+
+class Product(BaseModel):
+    id: str
+    name: str
+    category: str
+    target_goals: List[HealthGoal]
+    dosage: str
+    contains: List[DietaryRestriction] = Field(
+        default_factory=list,
+        description="Dietary restrictions this product conflicts with (e.g. fish oil conflicts with vegan)"
+    )
