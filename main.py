@@ -107,21 +107,47 @@ def get_products():
     return {"catalog": load_products()}
 
 
-# Recommends products based on a submitted health profile
+# Looks up a saved profile, then finds products matching their goals and diet
+@app.get("/recommend/{user_id}", tags=["Recommendations"])
+def recommend_for_saved_profile(user_id: str, db: Session = Depends(get_db)):
+    profile_row = db.query(ProfileDB).filter(ProfileDB.user_id == user_id).first()
+    if not profile_row:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    profile = HealthProfile(
+        user_id=profile_row.user_id,
+        full_name=profile_row.full_name,
+        age=profile_row.age,
+        gender=profile_row.gender,
+        weight_kg=profile_row.weight_kg,
+        height_cm=profile_row.height_cm,
+        activity_level=profile_row.activity_level,
+        health_goals=profile_row.health_goals,
+        dietary_restrictions=profile_row.dietary_restrictions,
+        notes=profile_row.notes
+    )
+
+    return build_recommendations(profile)
+
+
+# Same matching logic, but for a profile submitted directly (no saving required)
 @app.post("/recommend", tags=["Recommendations"])
-async def recommend_products(profile: HealthProfile):
+async def recommend_from_payload(profile: HealthProfile):
+    return build_recommendations(profile)
+
+
+# Shared matching logic used by both /recommend routes above
+def build_recommendations(profile: HealthProfile):
     catalog = load_products()
     member_goals = set(goal.value for goal in profile.health_goals)
     member_restrictions = set(r.value for r in profile.dietary_restrictions)
 
-    # Go through each product and see if it shares any goals with the person
     results = []
     for product in catalog:
-        # Skip this product completely if it conflicts with the member's diet
         product_conflicts = set(c.value for c in product.contains)
         if member_restrictions & product_conflicts:
             continue
-        
+
         product_goals = set(goal.value for goal in product.target_goals)
         overlap = member_goals & product_goals
 
@@ -134,7 +160,7 @@ async def recommend_products(profile: HealthProfile):
                 "matched_goals": sorted(overlap),
                 "match_count": len(overlap)
             })
-
+            
 # Sort the results by how many goals matched, descending
     results.sort(key=lambda r: r["match_count"], reverse=True)
 
