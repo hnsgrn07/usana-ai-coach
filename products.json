@@ -4,13 +4,15 @@
     "name": "USANA CellSentials",
     "category": "Core Nutrition",
     "target_goals": ["general_wellness", "energy_support"],
-    "dosage": "2 tablets Core Minerals and 2 tablets Vita-Antioxidant twice daily"
+    "dosage": "2 tablets Core Minerals and 2 tablets Vita-Antioxidant twice daily",
+    "contains": []
   },
   {
     "id": "biomega",
     "name": "BiOmega",
     "category": "Omega-3",
     "target_goals": ["joint_support", "cognitive_support"],
-    "dosage": "2 capsules daily with meals"
+    "dosage": "2 capsules daily with meals",
+    "contains": ["vegan", "vegetarian"]
   }
 ]

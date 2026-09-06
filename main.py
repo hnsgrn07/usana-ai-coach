@@ -66,10 +66,16 @@ def get_products():
 async def recommend_products(profile: HealthProfile):
     catalog = load_products()
     member_goals = set(goal.value for goal in profile.health_goals)
+    member_restrictions = set(r.value for r in profile.dietary_restrictions)
 
     # Go through each product and see if it shares any goals with the person
     results = []
     for product in catalog:
+        # Skip this product completely if it conflicts with the member's diet
+        product_conflicts = set(c.value for c in product.contains)
+        if member_restrictions & product_conflicts:
+            continue
+        
         product_goals = set(goal.value for goal in product.target_goals)
         overlap = member_goals & product_goals
 

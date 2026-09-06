@@ -24,7 +24,7 @@ Visit `http://127.0.0.1:8000/docs` for interactive API testing.
 | 2 | Health Profile Model | ✅ |
 | 3 | Product Catalog Structure | ✅ |
 | 4 | Core Recommendation Engine | ✅ |
-| 5 | Dietary Restriction Filtering | ⏳ |
+| 5 | Dietary Restriction Filtering | ✅ |
 | 6 | Catalog Expansion | ⏳ |
 | 7 | Persistence Layer | ⏳ |
 | 8 | Auth & Multi-Tenancy (QR enrollment) | ⏳ |
