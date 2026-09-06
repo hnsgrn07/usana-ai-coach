@@ -26,7 +26,7 @@ Visit `http://127.0.0.1:8000/docs` for interactive API testing.
 | 4 | Core Recommendation Engine | ✅ |
 | 5 | Dietary Restriction Filtering | ✅ |
 | 6 | Catalog Expansion | ✅ |
-| 7 | Persistence Layer | ⏳ |
+| 7 | Persistence Layer | ✅ |
 | 8 | Auth & Multi-Tenancy (QR enrollment) | ⏳ |
 | 9 | Dashboard (Frontend) | ⏳ |
 | 10 | Deployment / SaaS Hardening | ⏳ |
