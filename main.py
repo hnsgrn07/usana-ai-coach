@@ -14,8 +14,16 @@ from model import HealthProfile, Product, UserRegister, UserOut, UserLogin, Toke
 from database import engine, SessionLocal, Base
 from db_models import ProfileDB, UserDB, EnrollmentToken
 from auth import hash_password, verify_password, create_access_token, decode_access_token
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="USANA Nutritional Coach API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 Base.metadata.create_all(bind=engine)
 
