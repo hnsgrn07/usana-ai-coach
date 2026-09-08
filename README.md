@@ -30,8 +30,12 @@ Visit `http://127.0.0.1:8000/docs` for interactive API testing.
 | 8 | Auth & Multi-Tenancy (QR enrollment) | ⏳ |
     8a: user accounts✅
     8b: JWT login ✅
-    8c: QR enrollment⏳
+    8c: QR enrollment✅
 | 9 | Dashboard (Frontend) | ⏳ |
+    9a ✅ 
+    9b: login/register pages ✅
+    9c: dashboard page ⏳ 
+    9d: QR page ⏳
 | 10 | Deployment / SaaS Hardening | ⏳ |
 
 ## Deferred / Backlog
