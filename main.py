@@ -1,21 +1,23 @@
-from fastapi import Depends, FastAPI, HTTPException
-from pydantic import ValidationError
-import json
-
-from requests import Session
-
-from model import HealthProfile, Product, UserRegister, UserOut
-from database import engine, SessionLocal, Base
-from db_models import ProfileDB, UserDB
+# main.py
 
 import uuid
-from auth import hash_password
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import ValidationError
+from sqlalchemy.orm import Session
+import json
 
+from model import HealthProfile, Product, UserRegister, UserOut, UserLogin, Token
+from database import engine, SessionLocal, Base
+from db_models import ProfileDB, UserDB
+from auth import hash_password, verify_password, create_access_token, decode_access_token
 
 app = FastAPI(title="USANA Nutritional Coach API")
 
-# Creates the profiles table in the database if it doesn't exist yet
 Base.metadata.create_all(bind=engine)
+
+# Lets Swagger's "Authorize" button accept a plain pasted token
+security = HTTPBearer()
 
 
 # Opens a database session for a request, then closes it when done
@@ -25,6 +27,24 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+# Reads the token from the request, checks it's valid, and finds the matching user
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+) -> UserDB:
+    token = credentials.credentials
+    payload = decode_access_token(token)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = db.query(UserDB).filter(UserDB.user_id == payload.get("sub")).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    return user
+
 
 # Opens products.json and checks that every product matches our rules
 def load_products():
@@ -47,74 +67,113 @@ def load_products():
     return validated_catalog
 
 
-
-# Just says "hello, the API is working" when you visit the homepage
 @app.get("/", tags=["Health Check"])
 def home():
-    """Basic liveness check — confirms the API is running."""
     return {"message": "Welcome to the USANA Nutritional Coach API!"}
 
 
-# Saves a health profile to the database, or updates it if that user_id already exists
-@app.post("/profile", tags=["Health Profile"])
-async def create_profile(profile: HealthProfile, db: Session = Depends(get_db)):
-    data = profile.model_dump(mode="json")  # Convert Pydantic model to dict for SQLAlchemy
+# Creates a new user account with a securely hashed password
+@app.post("/register", response_model=UserOut, tags=["Auth"])
+def register_user(user: UserRegister, db: Session = Depends(get_db)):
+    existing = db.query(UserDB).filter(UserDB.email == user.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-    existing_profile = db.query(ProfileDB).filter(ProfileDB.user_id == profile.user_id).first()
-    if existing_profile:
-        # Update existing profile
+    new_user = UserDB(
+        user_id=str(uuid.uuid4()),
+        email=user.email,
+        hashed_password=hash_password(user.password)
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return UserOut(user_id=new_user.user_id, email=new_user.email)
+
+
+# Checks email + password, hands back a token if they match
+@app.post("/login", response_model=Token, tags=["Auth"])
+def login(credentials: UserLogin, db: Session = Depends(get_db)):
+    user = db.query(UserDB).filter(UserDB.email == credentials.email).first()
+
+    if not user or not verify_password(credentials.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
+
+    token = create_access_token({"sub": user.user_id})
+    return Token(access_token=token)
+
+
+# Saves a health profile for the logged-in user (can't save one for someone else)
+@app.post("/profile", tags=["Health Profile"])
+async def create_profile(
+    profile: HealthProfile,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    profile.user_id = current_user.user_id  # ignore whatever was submitted, use the logged-in user's real id
+    data = profile.model_dump(mode="json")
+
+    existing = db.query(ProfileDB).filter(ProfileDB.user_id == profile.user_id).first()
+
+    if existing:
         for key, value in data.items():
-            setattr(existing_profile, key, value)
+            setattr(existing, key, value)
         db.commit()
-        db.refresh(existing_profile)
+        db.refresh(existing)
         message = f"Profile updated for {profile.full_name}"
     else:
-        # Create new profile
         new_profile = ProfileDB(**data)
         db.add(new_profile)
         db.commit()
         db.refresh(new_profile)
-        message = f"Profile created for {profile.full_name}"
-    return {
-        "status": "success",
-        "message": message,
-        "data": data
-    }
+        message = f"Profile saved for {profile.full_name}"
 
-# Retrieves a health profile from the database by user_id
+    return {"status": "success", "message": message, "data": data}
+
+
+# Looks up a saved profile — only the profile's owner can view it
 @app.get("/profile/{user_id}", tags=["Health Profile"])
-def get_profile(user_id: str, db:  Session = Depends(get_db)):
+def get_profile(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    if user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this profile")
+
     profile = db.query(ProfileDB).filter(ProfileDB.user_id == user_id).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
+
     return {
-        "status": "success",
-        "data": {
-            "user_id": profile.user_id,
-            "full_name": profile.full_name,
-            "age": profile.age,
-            "gender": profile.gender,
-            "weight_kg": profile.weight_kg,
-            "height_cm": profile.height_cm,
-            "activity_level": profile.activity_level,
-            "health_goals": profile.health_goals,
-            "dietary_restrictions": profile.dietary_restrictions,
-            "notes": profile.notes
-        }
+        "user_id": profile.user_id,
+        "full_name": profile.full_name,
+        "age": profile.age,
+        "gender": profile.gender,
+        "weight_kg": profile.weight_kg,
+        "height_cm": profile.height_cm,
+        "activity_level": profile.activity_level,
+        "health_goals": profile.health_goals,
+        "dietary_restrictions": profile.dietary_restrictions,
+        "notes": profile.notes
     }
 
 
-
-
-# Sends back the full list of products
 @app.get("/products", tags=["Product Catalog"])
 def get_products():
     return {"catalog": load_products()}
 
 
-# Looks up a saved profile, then finds products matching their goals and diet
+# Looks up a saved profile, then finds matching products — only the owner can run this
 @app.get("/recommend/{user_id}", tags=["Recommendations"])
-def recommend_for_saved_profile(user_id: str, db: Session = Depends(get_db)):
+def recommend_for_saved_profile(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    if user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this profile's recommendations")
+
     profile_row = db.query(ProfileDB).filter(ProfileDB.user_id == user_id).first()
     if not profile_row:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -135,7 +194,7 @@ def recommend_for_saved_profile(user_id: str, db: Session = Depends(get_db)):
     return build_recommendations(profile)
 
 
-# Same matching logic, but for a profile submitted directly (no saving required)
+# Left open (no login needed) — useful for testing matching logic without an account
 @app.post("/recommend", tags=["Recommendations"])
 async def recommend_from_payload(profile: HealthProfile):
     return build_recommendations(profile)
@@ -166,7 +225,6 @@ def build_recommendations(profile: HealthProfile):
                 "match_count": len(overlap)
             })
 
-# Sort the results by how many goals matched, descending
     results.sort(key=lambda r: r["match_count"], reverse=True)
 
     if not results:
@@ -180,22 +238,3 @@ def build_recommendations(profile: HealthProfile):
         "status": "success",
         "recommendations": results
     }
-
-
-# Creates a new user account with a securely hashed password
-@app.post("/register", response_model=UserOut, tags=["Auth"])
-def register_user(user: UserRegister, db: Session = Depends(get_db)):
-    existing = db.query(UserDB).filter(UserDB.email == user.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    new_user = UserDB(
-        user_id=str(uuid.uuid4()),
-        email=user.email,
-        hashed_password=hash_password(user.password)
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return UserOut(user_id=new_user.user_id, email=new_user.email)

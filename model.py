@@ -116,3 +116,14 @@ class UserRegister(BaseModel):
 class UserOut(BaseModel):
     user_id: str
     email: str
+
+# What someone submits to log in
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+
+# What we send back after a successful login
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
