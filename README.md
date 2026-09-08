@@ -36,3 +36,5 @@ Visit `http://127.0.0.1:8000/docs` for interactive API testing.
 
 ## Deferred / Backlog
 - **Usanimals (pediatric product):** excluded from catalog. HealthProfile requires age ≥ 13, and Usanimals targets children below that. Revisit if child/family profiles are added — would need `min_age`/`max_age` on Product and an age-range check in /recommend.
+- **Associate/sponsor roles:** enrollment token generation is currently open to anyone. Once member vs. associate roles exist, restrict /enrollment/generate to associate accounts only.
+- **Schema migrations:** currently resetting usana_coach.db manually when models change. Adopt Alembic (or similar) before real user data exists, so schema changes don't require wiping the database.

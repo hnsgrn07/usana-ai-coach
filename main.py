@@ -1,5 +1,8 @@
 # main.py
 
+import qrcode
+import io
+from fastapi.responses import StreamingResponse
 import uuid
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -7,9 +10,9 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 import json
 
-from model import HealthProfile, Product, UserRegister, UserOut, UserLogin, Token
+from model import HealthProfile, Product, UserRegister, UserOut, UserLogin, Token, EnrollmentTokenOut
 from database import engine, SessionLocal, Base
-from db_models import ProfileDB, UserDB
+from db_models import ProfileDB, UserDB, EnrollmentToken
 from auth import hash_password, verify_password, create_access_token, decode_access_token
 
 app = FastAPI(title="USANA Nutritional Coach API")
@@ -72,9 +75,16 @@ def home():
     return {"message": "Welcome to the USANA Nutritional Coach API!"}
 
 
-# Creates a new user account with a securely hashed password
+# Creates a new user account, but only if their enrollment token is valid and unused
 @app.post("/register", response_model=UserOut, tags=["Auth"])
 def register_user(user: UserRegister, db: Session = Depends(get_db)):
+    token_row = db.query(EnrollmentToken).filter(EnrollmentToken.token == user.enrollment_token).first()
+
+    if not token_row:
+        raise HTTPException(status_code=400, detail="Invalid enrollment token")
+    if token_row.is_used:
+        raise HTTPException(status_code=400, detail="This enrollment token has already been used")
+
     existing = db.query(UserDB).filter(UserDB.email == user.email).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -82,9 +92,13 @@ def register_user(user: UserRegister, db: Session = Depends(get_db)):
     new_user = UserDB(
         user_id=str(uuid.uuid4()),
         email=user.email,
-        hashed_password=hash_password(user.password)
+        hashed_password=hash_password(user.password),
+        sponsor_id=token_row.sponsor_id
     )
     db.add(new_user)
+
+    token_row.is_used = True  # burn the token so it can't be reused
+
     db.commit()
     db.refresh(new_user)
 
@@ -198,6 +212,35 @@ def recommend_for_saved_profile(
 @app.post("/recommend", tags=["Recommendations"])
 async def recommend_from_payload(profile: HealthProfile):
     return build_recommendations(profile)
+
+# Creates a new enrollment token — this is what a QR code will encode.
+# Open for now (no login required) since "associate" roles don't exist yet.
+@app.post("/enrollment/generate", response_model=EnrollmentTokenOut, tags=["Enrollment"])
+def generate_enrollment_token(sponsor_id: str = None, db: Session = Depends(get_db)):
+    new_token = EnrollmentToken(
+        token=str(uuid.uuid4()),
+        sponsor_id=sponsor_id
+    )
+    db.add(new_token)
+    db.commit()
+    db.refresh(new_token)
+
+    enrollment_url = f"http://127.0.0.1:8000/register?token={new_token.token}"
+
+    return EnrollmentTokenOut(token=new_token.token, enrollment_url=enrollment_url)
+
+
+# Turns a token into an actual scannable QR code image
+@app.get("/enrollment/qr/{token}", tags=["Enrollment"])
+def get_enrollment_qr(token: str):
+    enrollment_url = f"http://127.0.0.1:8000/register?token={token}"
+
+    qr_img = qrcode.make(enrollment_url)
+    buffer = io.BytesIO()
+    qr_img.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    return StreamingResponse(buffer, media_type="image/png")
 
 
 # Shared matching logic used by both /recommend routes above

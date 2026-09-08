@@ -106,10 +106,17 @@ class Product(BaseModel):
         description="Dietary restrictions this product conflicts with (e.g. fish oil conflicts with vegan)"
     )
 
-# What someone submits to create an account
+# What we send back after generating a new enrollment token
+class EnrollmentTokenOut(BaseModel):
+    token: str
+    enrollment_url: str
+
+
+# Registration now requires the token from the QR code, not just email/password
 class UserRegister(BaseModel):
     email: str = Field(..., min_length=5, max_length=100)
     password: str = Field(..., min_length=8, max_length=100)
+    enrollment_token: str
 
 
 # What we send back after registration — never includes the password
@@ -127,3 +134,4 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
