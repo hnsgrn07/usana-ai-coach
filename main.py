@@ -250,6 +250,11 @@ def get_enrollment_qr(token: str):
 
     return StreamingResponse(buffer, media_type="image/png")
 
+# Tells the frontend who's currently logged in, based on their token
+@app.get("/me", tags=["Auth"])
+def get_me(current_user: UserDB = Depends(get_current_user)):
+    return {"user_id": current_user.user_id, "email": current_user.email}
+
 
 # Shared matching logic used by both /recommend routes above
 def build_recommendations(profile: HealthProfile):
