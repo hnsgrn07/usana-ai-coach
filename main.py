@@ -17,7 +17,7 @@ from auth import hash_password, verify_password, create_access_token, decode_acc
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 app = FastAPI(title="USANA Nutritional Coach API")
 app.add_middleware(
@@ -236,7 +236,7 @@ def generate_enrollment_token(sponsor_id: str = None, db: Session = Depends(get_
     db.commit()
     db.refresh(new_token)
 
-    enrollment_url = f"{BACKEND_URL}/register?token={new_token.token}"
+    enrollment_url = f"{FRONTEND_URL}/register?token={new_token.token}"
 
     return EnrollmentTokenOut(token=new_token.token, enrollment_url=enrollment_url)
 
@@ -244,7 +244,7 @@ def generate_enrollment_token(sponsor_id: str = None, db: Session = Depends(get_
 # Turns a token into an actual scannable QR code image
 @app.get("/enrollment/qr/{token}", tags=["Enrollment"])
 def get_enrollment_qr(token: str):
-    enrollment_url = f"{BACKEND_URL}/register?token={token}"
+    enrollment_url = f"{FRONTEND_URL}/register?token={token}"
 
     qr_img = qrcode.make(enrollment_url)
     buffer = io.BytesIO()
