@@ -34,7 +34,7 @@ Visit `http://127.0.0.1:8000/docs` for interactive API testing.
 | 9 | Dashboard (Frontend) | ⏳ |
     9a ✅ 
     9b: login/register pages ✅
-    9c: dashboard page ⏳ 
+    9c: dashboard page ✅ 
     9d: QR page ⏳
 | 10 | Deployment / SaaS Hardening | ⏳ |
 
