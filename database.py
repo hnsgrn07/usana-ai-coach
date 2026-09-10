@@ -1,16 +1,17 @@
 # database.py
 
-# Sets up the connection to our SQLite database file
+import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# The database is just a single file sitting in the project folder
-DATABASE_URL = "sqlite:///./usana_coach.db"
+load_dotenv()
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# Reads the real database location from the environment instead of hardcoding it
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Used to open a "conversation" with the database for each request
+# Postgres doesn't need the SQLite-specific connect_args setting
+engine = create_engine(DATABASE_URL)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# All our database table classes will inherit from this
 Base = declarative_base()

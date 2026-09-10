@@ -2,4 +2,3 @@ venv/
 __pycache__/
 products.json
 .env
-usana_coach.db
