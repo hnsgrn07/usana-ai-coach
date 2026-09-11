@@ -19,7 +19,8 @@ class ProfileDB(Base):
     health_goals = Column(JSON)
     dietary_restrictions = Column(JSON)
     notes = Column(String, nullable=True)
-
+    coaching_text = Column(String, nullable=True)
+    coaching_generated_at = Column(DateTime, nullable=True)
 
 class UserDB(Base):
     __tablename__ = "users"

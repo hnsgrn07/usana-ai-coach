@@ -1,5 +1,7 @@
 # main.py
 
+from datetime import datetime
+from ai_coach import generate_coaching
 import qrcode
 import io
 from fastapi.responses import StreamingResponse
@@ -129,31 +131,63 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
 
 
 # Saves a health profile for the logged-in user (can't save one for someone else)
+# Saves a health profile for the logged-in user, and generates a
+# personalized AI coaching note based on their matched recommendations
 @app.post("/profile", tags=["Health Profile"])
 async def create_profile(
     profile: HealthProfile,
     db: Session = Depends(get_db),
     current_user: UserDB = Depends(get_current_user)
 ):
-    profile.user_id = current_user.user_id  # ignore whatever was submitted, use the logged-in user's real id
+    profile.user_id = current_user.user_id
     data = profile.model_dump(mode="json")
+
+    # Run the deterministic matching first, then let the AI narrate it
+    rec_result = build_recommendations(profile)
+    recommendations = rec_result.get("recommendations", [])
+
+    try:
+        coaching_text = generate_coaching(data, recommendations)
+    except Exception as e:
+        coaching_text = None  # don't block saving the profile if the AI call fails
 
     existing = db.query(ProfileDB).filter(ProfileDB.user_id == profile.user_id).first()
 
     if existing:
         for key, value in data.items():
             setattr(existing, key, value)
+        existing.coaching_text = coaching_text
+        existing.coaching_generated_at = datetime.utcnow()
         db.commit()
         db.refresh(existing)
         message = f"Profile updated for {profile.full_name}"
     else:
-        new_profile = ProfileDB(**data)
+        new_profile = ProfileDB(**data, coaching_text=coaching_text, coaching_generated_at=datetime.utcnow())
         db.add(new_profile)
         db.commit()
         db.refresh(new_profile)
         message = f"Profile saved for {profile.full_name}"
 
     return {"status": "success", "message": message, "data": data}
+
+# Returns the logged-in user's saved AI coaching note
+@app.get("/coach/{user_id}", tags=["AI Coach"])
+def get_coaching(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    if user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    profile = db.query(ProfileDB).filter(ProfileDB.user_id == user_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    return {
+        "coaching_text": profile.coaching_text,
+        "generated_at": profile.coaching_generated_at,
+    }
 
 
 # Looks up a saved profile — only the profile's owner can view it
