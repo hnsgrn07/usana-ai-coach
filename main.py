@@ -17,12 +17,12 @@ import qrcode
 from model import (
     HealthProfile, Product, UserRegister, UserOut,
     UserLogin, Token, EnrollmentTokenOut, HabitStatus,
-    ProgressPoint
+    ProgressPoint, ChatRequest
 )
 from database import engine, SessionLocal, Base
 from db_models import ProfileDB, UserDB, EnrollmentToken, HabitLog, ProfileSnapshot
 from auth import hash_password, verify_password, create_access_token, decode_access_token
-from ai_coach import generate_coaching
+from ai_coach import generate_coaching, generate_chat_reply
 from typing import List
 
 app = FastAPI(title="USANA Nutritional Coach API")
@@ -283,6 +283,48 @@ def get_coaching(
         "coaching_text": profile.coaching_text,
         "generated_at": profile.coaching_generated_at,
     }
+
+# Lets a logged-in member chat with their AI coach, using their saved
+# profile and recommendations as context for every reply
+@app.post("/chat/{user_id}", tags=["AI Coach"])
+def chat_with_coach(
+    user_id: str,
+    request: ChatRequest,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    if user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    profile_row = db.query(ProfileDB).filter(ProfileDB.user_id == user_id).first()
+    if not profile_row:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    profile = HealthProfile(
+        user_id=profile_row.user_id,
+        full_name=profile_row.full_name,
+        age=profile_row.age,
+        gender=profile_row.gender,
+        weight_kg=profile_row.weight_kg,
+        height_cm=profile_row.height_cm,
+        activity_level=profile_row.activity_level,
+        health_goals=profile_row.health_goals,
+        dietary_restrictions=profile_row.dietary_restrictions,
+        notes=profile_row.notes
+    )
+
+    rec_result = build_recommendations(profile)
+    recommendations = rec_result.get("recommendations", [])
+
+    profile_data = profile.model_dump(mode="json")
+    history = [h.model_dump() for h in request.history]
+
+    try:
+        reply = generate_chat_reply(profile_data, recommendations, request.message, history)
+    except Exception:
+        raise HTTPException(status_code=503, detail="The coach is temporarily unavailable, please try again")
+
+    return {"reply": reply}
 
 
 # Sends back the full list of products

@@ -148,3 +148,14 @@ class ProgressPoint(BaseModel):
     weight_kg: float
     health_goals: List[str]
 
+# One message in a chat conversation
+class ChatMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
+# What the frontend sends when asking the coach something
+class ChatRequest(BaseModel):
+    message: str
+    history: List[ChatMessage] = Field(default_factory=list)
+
