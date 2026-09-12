@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from enum import Enum
+from datetime import date
 
 class ActivityLevel(str, Enum):
     sedentary = "sedentary"
@@ -134,4 +135,10 @@ class UserLogin(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+# What we send back describing someone's check-in history and streak
+class HabitStatus(BaseModel):
+    checked_in_today: bool
+    current_streak: int
+    recent_days: List[dict]
 

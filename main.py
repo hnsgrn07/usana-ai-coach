@@ -1,27 +1,31 @@
 # main.py
 
-from datetime import datetime
-from ai_coach import generate_coaching
-import qrcode
-import io
-from fastapi.responses import StreamingResponse
 import uuid
+import json
+import io
+import os
+from datetime import datetime, date, timedelta
+
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
-import json
+import qrcode
 
-from model import HealthProfile, Product, UserRegister, UserOut, UserLogin, Token, EnrollmentTokenOut
+from model import (
+    HealthProfile, Product, UserRegister, UserOut,
+    UserLogin, Token, EnrollmentTokenOut, HabitStatus
+)
 from database import engine, SessionLocal, Base
-from db_models import ProfileDB, UserDB, EnrollmentToken
+from db_models import ProfileDB, UserDB, EnrollmentToken, HabitLog
 from auth import hash_password, verify_password, create_access_token, decode_access_token
-from fastapi.middleware.cors import CORSMiddleware
-import os
-
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+from ai_coach import generate_coaching
 
 app = FastAPI(title="USANA Nutritional Coach API")
+
+# Allows the deployed frontend (and local dev) to call this API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "https://usana-dashboard.vercel.app"],
@@ -30,7 +34,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Creates all database tables if they don't exist yet
 Base.metadata.create_all(bind=engine)
+
+# Where enrollment links should point — the frontend's register page
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 # Lets Swagger's "Authorize" button accept a plain pasted token
 security = HTTPBearer()
@@ -83,6 +91,7 @@ def load_products():
     return validated_catalog
 
 
+# Just says "hello, the API is working" when you visit the homepage
 @app.get("/", tags=["Health Check"])
 def home():
     return {"message": "Welcome to the USANA Nutritional Coach API!"}
@@ -130,7 +139,42 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     return Token(access_token=token)
 
 
-# Saves a health profile for the logged-in user (can't save one for someone else)
+# Tells the frontend who's currently logged in, based on their token
+@app.get("/me", tags=["Auth"])
+def get_me(current_user: UserDB = Depends(get_current_user)):
+    return {"user_id": current_user.user_id, "email": current_user.email}
+
+
+# Creates a new enrollment token — this is what a QR code encodes.
+# Open for now (no login required) since associate/sponsor roles don't exist yet.
+@app.post("/enrollment/generate", response_model=EnrollmentTokenOut, tags=["Enrollment"])
+def generate_enrollment_token(sponsor_id: str = None, db: Session = Depends(get_db)):
+    new_token = EnrollmentToken(
+        token=str(uuid.uuid4()),
+        sponsor_id=sponsor_id
+    )
+    db.add(new_token)
+    db.commit()
+    db.refresh(new_token)
+
+    enrollment_url = f"{FRONTEND_URL}/register?token={new_token.token}"
+
+    return EnrollmentTokenOut(token=new_token.token, enrollment_url=enrollment_url)
+
+
+# Turns a token into an actual scannable QR code image
+@app.get("/enrollment/qr/{token}", tags=["Enrollment"])
+def get_enrollment_qr(token: str):
+    enrollment_url = f"{FRONTEND_URL}/register?token={token}"
+
+    qr_img = qrcode.make(enrollment_url)
+    buffer = io.BytesIO()
+    qr_img.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    return StreamingResponse(buffer, media_type="image/png")
+
+
 # Saves a health profile for the logged-in user, and generates a
 # personalized AI coaching note based on their matched recommendations
 @app.post("/profile", tags=["Health Profile"])
@@ -148,7 +192,7 @@ async def create_profile(
 
     try:
         coaching_text = generate_coaching(data, recommendations)
-    except Exception as e:
+    except Exception:
         coaching_text = None  # don't block saving the profile if the AI call fails
 
     existing = db.query(ProfileDB).filter(ProfileDB.user_id == profile.user_id).first()
@@ -169,25 +213,6 @@ async def create_profile(
         message = f"Profile saved for {profile.full_name}"
 
     return {"status": "success", "message": message, "data": data}
-
-# Returns the logged-in user's saved AI coaching note
-@app.get("/coach/{user_id}", tags=["AI Coach"])
-def get_coaching(
-    user_id: str,
-    db: Session = Depends(get_db),
-    current_user: UserDB = Depends(get_current_user)
-):
-    if user_id != current_user.user_id:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    profile = db.query(ProfileDB).filter(ProfileDB.user_id == user_id).first()
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profile not found")
-
-    return {
-        "coaching_text": profile.coaching_text,
-        "generated_at": profile.coaching_generated_at,
-    }
 
 
 # Looks up a saved profile — only the profile's owner can view it
@@ -218,6 +243,27 @@ def get_profile(
     }
 
 
+# Returns the logged-in user's saved AI coaching note
+@app.get("/coach/{user_id}", tags=["AI Coach"])
+def get_coaching(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    if user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    profile = db.query(ProfileDB).filter(ProfileDB.user_id == user_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    return {
+        "coaching_text": profile.coaching_text,
+        "generated_at": profile.coaching_generated_at,
+    }
+
+
+# Sends back the full list of products
 @app.get("/products", tags=["Product Catalog"])
 def get_products():
     return {"catalog": load_products()}
@@ -258,40 +304,6 @@ def recommend_for_saved_profile(
 async def recommend_from_payload(profile: HealthProfile):
     return build_recommendations(profile)
 
-# Creates a new enrollment token — this is what a QR code will encode.
-# Open for now (no login required) since "associate" roles don't exist yet.
-@app.post("/enrollment/generate", response_model=EnrollmentTokenOut, tags=["Enrollment"])
-def generate_enrollment_token(sponsor_id: str = None, db: Session = Depends(get_db)):
-    new_token = EnrollmentToken(
-        token=str(uuid.uuid4()),
-        sponsor_id=sponsor_id
-    )
-    db.add(new_token)
-    db.commit()
-    db.refresh(new_token)
-
-    enrollment_url = f"{FRONTEND_URL}/register?token={new_token.token}"
-
-    return EnrollmentTokenOut(token=new_token.token, enrollment_url=enrollment_url)
-
-
-# Turns a token into an actual scannable QR code image
-@app.get("/enrollment/qr/{token}", tags=["Enrollment"])
-def get_enrollment_qr(token: str):
-    enrollment_url = f"{FRONTEND_URL}/register?token={token}"
-
-    qr_img = qrcode.make(enrollment_url)
-    buffer = io.BytesIO()
-    qr_img.save(buffer, format="PNG")
-    buffer.seek(0)
-
-    return StreamingResponse(buffer, media_type="image/png")
-
-# Tells the frontend who's currently logged in, based on their token
-@app.get("/me", tags=["Auth"])
-def get_me(current_user: UserDB = Depends(get_current_user)):
-    return {"user_id": current_user.user_id, "email": current_user.email}
-
 
 # Shared matching logic used by both /recommend routes above
 def build_recommendations(profile: HealthProfile):
@@ -331,3 +343,60 @@ def build_recommendations(profile: HealthProfile):
         "status": "success",
         "recommendations": results
     }
+
+
+# Marks today as checked in for the logged-in user — doesn't duplicate
+# if they've already checked in today
+@app.post("/habits/checkin", tags=["Habits"])
+def check_in(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    today = date.today()
+
+    existing = db.query(HabitLog).filter(
+        HabitLog.user_id == current_user.user_id,
+        HabitLog.log_date == today
+    ).first()
+
+    if existing:
+        return {"status": "already_checked_in", "date": str(today)}
+
+    new_log = HabitLog(user_id=current_user.user_id, log_date=today, completed=True)
+    db.add(new_log)
+    db.commit()
+
+    return {"status": "checked_in", "date": str(today)}
+
+
+# Returns the logged-in user's current streak and recent check-in history
+@app.get("/habits/status", response_model=HabitStatus, tags=["Habits"])
+def get_habit_status(
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    logs = db.query(HabitLog).filter(
+        HabitLog.user_id == current_user.user_id
+    ).order_by(HabitLog.log_date.desc()).all()
+
+    logged_dates = {log.log_date for log in logs}
+    today = date.today()
+
+    checked_in_today = today in logged_dates
+
+    streak = 0
+    cursor = today if checked_in_today else today - timedelta(days=1)
+    while cursor in logged_dates:
+        streak += 1
+        cursor -= timedelta(days=1)
+
+    recent_days = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        recent_days.append({"date": str(day), "completed": day in logged_dates})
+
+    return HabitStatus(
+        checked_in_today=checked_in_today,
+        current_streak=streak,
+        recent_days=recent_days
+    )

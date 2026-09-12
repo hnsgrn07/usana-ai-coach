@@ -1,6 +1,6 @@
 # db_models.py
 
-from sqlalchemy import Column, Integer, String, Float, JSON, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, Float, JSON, DateTime, Boolean, Date, UniqueConstraint
 from datetime import datetime
 from database import Base
 
@@ -42,3 +42,17 @@ class EnrollmentToken(Base):
     sponsor_id = Column(String, nullable=True)
     is_used = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+# Tracks whether a member checked in as having taken their supplements
+# on a given day — one row per user per date
+class HabitLog(Base):
+    __tablename__ = "habit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, index=True)
+    log_date = Column(Date)
+    completed = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # A user can only have one check-in per calendar day
+    __table_args__ = (UniqueConstraint("user_id", "log_date", name="unique_user_date"),)
