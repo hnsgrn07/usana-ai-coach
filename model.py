@@ -142,3 +142,9 @@ class HabitStatus(BaseModel):
     current_streak: int
     recent_days: List[dict]
 
+# One data point in a member's progress history
+class ProgressPoint(BaseModel):
+    date: str
+    weight_kg: float
+    health_goals: List[str]
+

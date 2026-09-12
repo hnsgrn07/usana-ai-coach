@@ -56,3 +56,15 @@ class HabitLog(Base):
 
     # A user can only have one check-in per calendar day
     __table_args__ = (UniqueConstraint("user_id", "log_date", name="unique_user_date"),)
+
+# Records a dated snapshot every time a profile is saved/updated,
+# so we can show progress over time instead of only the latest state
+class ProfileSnapshot(Base):
+    __tablename__ = "profile_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, index=True)
+    snapshot_date = Column(Date)
+    weight_kg = Column(Float)
+    health_goals = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)

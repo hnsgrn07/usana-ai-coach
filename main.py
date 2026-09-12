@@ -16,12 +16,14 @@ import qrcode
 
 from model import (
     HealthProfile, Product, UserRegister, UserOut,
-    UserLogin, Token, EnrollmentTokenOut, HabitStatus
+    UserLogin, Token, EnrollmentTokenOut, HabitStatus,
+    ProgressPoint
 )
 from database import engine, SessionLocal, Base
-from db_models import ProfileDB, UserDB, EnrollmentToken, HabitLog
+from db_models import ProfileDB, UserDB, EnrollmentToken, HabitLog, ProfileSnapshot
 from auth import hash_password, verify_password, create_access_token, decode_access_token
 from ai_coach import generate_coaching
+from typing import List
 
 app = FastAPI(title="USANA Nutritional Coach API")
 
@@ -212,6 +214,26 @@ async def create_profile(
         db.refresh(new_profile)
         message = f"Profile saved for {profile.full_name}"
 
+        # Record today's snapshot for progress tracking, replacing any
+    # snapshot already taken today rather than creating duplicates
+    today = date.today()
+    existing_snapshot = db.query(ProfileSnapshot).filter(
+        ProfileSnapshot.user_id == profile.user_id,
+        ProfileSnapshot.snapshot_date == today
+    ).first()
+
+    if existing_snapshot:
+        existing_snapshot.weight_kg = profile.weight_kg
+        existing_snapshot.health_goals = data["health_goals"]
+    else:
+        db.add(ProfileSnapshot(
+            user_id=profile.user_id,
+            snapshot_date=today,
+            weight_kg=profile.weight_kg,
+            health_goals=data["health_goals"]
+        ))
+    db.commit()
+
     return {"status": "success", "message": message, "data": data}
 
 
@@ -400,3 +422,26 @@ def get_habit_status(
         current_streak=streak,
         recent_days=recent_days
     )
+
+# Returns the logged-in user's progress history for charting
+@app.get("/progress/{user_id}", response_model=List[ProgressPoint], tags=["Progress"])
+def get_progress(
+    user_id: str,
+    db: Session = Depends(get_db),
+    current_user: UserDB = Depends(get_current_user)
+):
+    if user_id != current_user.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    snapshots = db.query(ProfileSnapshot).filter(
+        ProfileSnapshot.user_id == user_id
+    ).order_by(ProfileSnapshot.snapshot_date.asc()).all()
+
+    return [
+        ProgressPoint(
+            date=str(s.snapshot_date),
+            weight_kg=s.weight_kg,
+            health_goals=s.health_goals
+        )
+        for s in snapshots
+    ]
